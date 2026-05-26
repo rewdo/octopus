@@ -10,6 +10,7 @@ import hashlib
 import os
 import platform
 import subprocess
+import threading
 import time
 from copy import deepcopy
 from pathlib import Path
@@ -38,6 +39,11 @@ class WorldState:
 
         # Last snapshot for diffing
         self._last_snapshot: Optional[dict] = None
+
+        # Background file watching (polling-based)
+        self._watching: bool = False
+        self._watcher_thread: Optional[threading.Thread] = None
+        self._changed_files: list[str] = []
 
         # Initialize with system info
         self._init_system_info()
@@ -161,6 +167,106 @@ class WorldState:
                     changes[path] = "unchanged"
 
         return changes
+
+    # ── Event-driven watching ────────────────────────────────────────────
+
+    def enable_watching(self, callback=None) -> None:
+        """Start background file watching via polling (every 5 seconds).
+
+        When changes are detected, the optional callback is invoked with a
+        list of changed file paths.
+
+        Args:
+            callback: Optional callable(changed_files: list[str]) fired on changes.
+        """
+        if self._watching:
+            return  # Already watching
+
+        self._watching = True
+        self._changed_files = []
+        self._watcher_thread = threading.Thread(
+            target=self._poll_loop,
+            args=(callback,),
+            daemon=True,
+        )
+        self._watcher_thread.start()
+
+    def disable_watching(self) -> None:
+        """Stop background file watching and join the watcher thread."""
+        self._watching = False
+        if self._watcher_thread is not None:
+            self._watcher_thread.join(timeout=10)
+            self._watcher_thread = None
+
+    def _poll_loop(self, callback=None) -> None:
+        """Internal polling loop. Runs every 5 seconds while watching."""
+        while self._watching:
+            time.sleep(5)
+            if not self._watching:
+                break
+            changes = self.check_file_changes()
+            changed = [p for p, status in changes.items() if status != "unchanged"]
+            if changed:
+                self._changed_files.extend(changed)
+                if callback is not None:
+                    try:
+                        callback(changed)
+                    except Exception:
+                        pass  # Swallow callback errors to keep polling alive
+
+    def get_changed_files(self) -> list[str]:
+        """Return the list of files that have changed since the last check.
+
+        Returns deduplicated list. The internal buffer is NOT cleared so the
+        caller can check at any time; use after processing as needed.
+        """
+        # Deduplicate while preserving order
+        seen: set[str] = set()
+        result: list[str] = []
+        for f in self._changed_files:
+            if f not in seen:
+                seen.add(f)
+                result.append(f)
+        return result
+
+    # ── Brain response updates ───────────────────────────────────────────
+
+    def update_from_brain_response(self, brain_type: str, response) -> None:
+        """Update world state based on a brain's execution result.
+
+        Args:
+            brain_type: One of 'action', 'frontier', 'world' (string or enum value).
+            response: A BrainResponse instance.
+
+        Behavior per brain type:
+            - action:    Extract tool_call results from response.tool_calls and
+                         feed them into update_from_tool_call().
+            - frontier:  Record the last reasoning result in state.
+            - world:     No update needed (self-maintaining).
+        """
+        # Normalize: handle both string and BrainType enum
+        bt = brain_type.lower() if isinstance(brain_type, str) else brain_type
+        if hasattr(bt, "value"):
+            bt = bt.value
+
+        if bt == "action":
+            # Extract tool calls from the brain response
+            tool_calls = getattr(response, "tool_calls", None) or []
+            for tc in tool_calls:
+                tool_name = tc.get("name", tc.get("tool", "unknown"))
+                params = tc.get("params", tc.get("parameters", {}))
+                result = tc.get("result", "")
+                self.update_from_tool_call(tool_name, params, result)
+
+        elif bt == "frontier":
+            # Record the last frontier reasoning content
+            content = getattr(response, "content", "")
+            self.set("_last_frontier_reasoning", content)
+            self.set("_last_frontier_confidence", getattr(response, "confidence", 1.0))
+
+        elif bt == "world":
+            # World brain is self-maintaining; nothing to ingest
+            pass
 
     # ── Environment ──────────────────────────────────────────────────────
 
