@@ -166,41 +166,106 @@ def run(
         "-w",
         help="Path to the Octopus workspace directory.",
     ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        "-j",
+        help="Output result as JSON instead of rich formatting.",
+    ),
 ):
-    """Run a task through the Octopus agent."""
+    """Run a task through the full Octopus agent pipeline.
+
+    The task is analyzed by the Cognitive Router, dispatched to the most
+    appropriate brain (Cheap / Skill / Action), executed, and the result
+    is returned with cost, token, and latency metrics.
+    """
     config = _load_config(workspace)
 
-    if not config.apis:
-        console.print("[red]No APIs configured. Run 'octopus init' first.[/red]")
-        raise typer.Exit(1)
-
-    console.print(f"\n[bold cyan]Task:[/bold cyan] {task}")
+    console.print(f"\n[bold cyan]🐙 Task:[/bold cyan] {task}")
     if model:
         console.print(f"[dim]Model override: {model}[/dim]")
 
-    # Determine which API to show (cheapest by default)
-    from octopus.api import APIManager
+    # Initialize the agent
+    from octopus.agent import OctopusAgent
 
-    manager = APIManager(config)
-    apis = manager.list_apis()
+    try:
+        agent = OctopusAgent(config)
+    except Exception as e:
+        console.print(f"[red]Failed to initialize agent: {e}[/red]")
+        raise typer.Exit(1)
 
-    console.print(f"\n[bold]Available APIs (sorted by cost):[/bold]")
-    table = Table()
-    table.add_column("Name", style="cyan")
-    table.add_column("Model", style="green")
-    table.add_column("Cost", style="yellow")
-    table.add_column("Max Tokens", style="dim")
+    # Build kwargs
+    kwargs: dict = {}
+    if model:
+        kwargs["metadata"] = {"preferred_model": model}
 
-    for api in apis:
-        cost = api.price_per_1k_input + api.price_per_1k_output
-        table.add_row(api.name, api.model, f"${cost:.6f}/1K", str(api.max_tokens))
+    # Execute
+    console.print("[dim]Routing and executing...[/dim]\n")
 
-    console.print(table)
-    console.print(
-        f"\n[dim]Would route to cheapest API: [bold]{apis[0].name}[/bold] ({apis[0].model})[/dim]"
+    try:
+        result = agent.run_sync(task, **kwargs)
+    except Exception as e:
+        console.print(f"[red]Execution error: {e}[/red]")
+        raise typer.Exit(1)
+    finally:
+        agent.close_sync()
+
+    if json_output:
+        console.print_json(data=result)
+        return
+
+    # ── Rich formatted output ──
+
+    # Decision panel
+    decision = result.get("decision", {})
+    dim_scores = decision.get("dimension_scores", {})
+
+    decision_table = Table(title="🧭 Router Decision")
+    decision_table.add_column("Metric", style="cyan")
+    decision_table.add_column("Value", style="green")
+    decision_table.add_row("Brain Selected", f"[bold]{decision.get('selected_brain', '?').upper()}[/bold]")
+    decision_table.add_row("Final Score", f"{decision.get('final_score', 0):.2f}")
+    decision_table.add_row("Reasoning", decision.get("reasoning", "N/A")[:120])
+
+    if dim_scores:
+        for dim, score in dim_scores.items():
+            emoji = "🔴" if score >= 7 else "🟡" if score >= 4 else "🟢"
+            decision_table.add_row(f"  {dim}", f"{emoji} {score:.2f}")
+
+    console.print(decision_table)
+
+    # Result panel
+    status_icon = "✅" if result.get("success") else "❌"
+    result_panel = Panel(
+        result.get("output", "(no output)")[:2000],
+        title=f"{status_icon} Result from [{decision.get('selected_brain', '?').upper()}] Brain",
+        border_style="green" if result.get("success") else "red",
     )
+    console.print(result_panel)
+
+    # Metrics table
+    metrics_table = Table(title="📊 Metrics")
+    metrics_table.add_column("Metric", style="cyan")
+    metrics_table.add_column("Value", style="yellow")
+    metrics_table.add_row("Latency", f"{result.get('latency_ms', 0):.1f} ms")
+    metrics_table.add_row("Tokens Used", str(result.get("tokens", 0)))
+    metrics_table.add_row("Cost", f"${result.get('cost', 0):.6f}")
+    metrics_table.add_row("Task ID", result.get("task_id", "N/A"))
+
+    errors = result.get("errors", [])
+    if errors:
+        metrics_table.add_row("Errors", f"[red]{len(errors)}[/red]")
+        for err in errors:
+            metrics_table.add_row("", f"[dim]{err[:100]}[/dim]")
+
+    console.print(metrics_table)
+
+    # Memory status
+    mem_stats = agent.status()["memory"]
     console.print(
-        "[dim]Full agent execution (routing, planning, tool use) not yet wired in v0.1.[/dim]"
+        f"\n[dim]🧠 Memory: {mem_stats['graph']['total_nodes']} nodes, "
+        f"{mem_stats['working_memory_items']} working, "
+        f"{mem_stats['episodic_events']} events[/dim]"
     )
 
 

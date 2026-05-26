@@ -19,5 +19,6 @@ __license__ = "MIT"
 
 from octopus.config import OctopusConfig
 from octopus.router import CognitiveRouter
+from octopus.agent import OctopusAgent
 
-__all__ = ["OctopusConfig", "CognitiveRouter"]
+__all__ = ["OctopusConfig", "CognitiveRouter", "OctopusAgent"]
