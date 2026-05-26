@@ -42,7 +42,13 @@ octopus init
 octopus run "hello"
 ```
 
-## What's Next (v0.2.0)
+## Git Tags (Phase Rollback)
+
+| Tag | Description | Checkout |
+|-----|-------------|----------|
+| `phase-1` | Core OS | `git checkout phase-1` |
+| `phase-2` | Self-Growing | `git checkout phase-2` |
+| `v0.1.0` | Full Octopus (latest) | `git checkout v0.1.0` |
 
 - Skill benchmark arena
 - LLM-powered Planning Brain decomposition

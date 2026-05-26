@@ -208,15 +208,13 @@ Critical outputs from the Frontier Brain can be cross-validated by a second mode
 
 ## Project Status & Roadmap
 
-| Phase | Milestone | Status |
-|-------|-----------|--------|
-| **Phase 1** | Core skeleton: config, brain base, router stub, memory store | 🚧 In Progress |
-| **Phase 2** | Cheap Brain + Skill Brain (local execution) | ⬜ Planned |
-| **Phase 3** | Memory Brain (graph + vector RAG) | ⬜ Planned |
-| **Phase 4** | Planning Brain + Action Brain (tool use) | ⬜ Planned |
-| **Phase 5** | World Brain + Multi-Agent Verification | ⬜ Planned |
-| **Phase 6** | CLI + Web Dashboard + Skill Marketplace | ⬜ Planned |
-| **Phase 7** | Self-evolution (auto-skill generation, meta-learning) | ⬜ Planned |
+| Phase | Milestone | Tag | Status |
+|-------|-----------|-----|--------|
+| **Phase 1** | Core OS: Router + 3 brains + memory + skills + API + CLI | [`phase-1`](https://github.com/rewdo/octopus/releases/tag/phase-1) | ✅ Complete |
+| **Phase 2** | Self-Growing: 7 brains + verification + healing + GC + distiller + budget + arena | [`phase-2`](https://github.com/rewdo/octopus/releases/tag/phase-2) | ✅ Complete |
+| **Phase 3** | Full Octopus: ontology + multi-user + marketplace + cross-brain | [`v0.1.0`](https://github.com/rewdo/octopus/releases/tag/v0.1.0) | ✅ Complete |
+
+> 💡 Rollback to any phase: `git checkout phase-1` or `git checkout phase-2`
 
 ## Contributing
 
