@@ -1,5 +1,7 @@
 # 🐙 Octopus — Multi-Brain Agent Infrastructure
 
+> 📖 [中文版](README.zh-CN.md)
+
 <p align="center">
   <strong>Token-Economic · Never-Forgetting · Self-Evolving</strong><br>
   <em>A cognitive operating system for AI agents — like an octopus, with multiple brains.</em>
