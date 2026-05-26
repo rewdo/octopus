@@ -1,0 +1,9 @@
+include README.md README.zh-CN.md LICENSE RELEASE.md
+include CHANGELOG.md CHANGELOG.zh-CN.md
+include CONTRIBUTING.md CONTRIBUTING.zh-CN.md CODE_OF_CONDUCT.md SECURITY.md
+include pyproject.toml
+recursive-include src *.py
+recursive-include src *.json
+recursive-include tests *.py
+recursive-include examples *.py
+recursive-include docs *.md
