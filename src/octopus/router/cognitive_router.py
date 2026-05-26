@@ -273,32 +273,46 @@ class CognitiveRouter:
         if final_score < t1:
             # Below T1: Cheap or Skill depending on skill match
             if skill_conf >= 4.0:
-                return BrainType.SKILL, (
+                target_brain = BrainType.SKILL
+                target_reason = (
                     f"Score {final_score} < T1({t1}) with moderate skill confidence ({skill_conf}). "
                     "Routing to Skill Brain."
                 )
-            return BrainType.CHEAP, (
-                f"Score {final_score} < T1({t1}) with low skill confidence ({skill_conf}). "
-                "Routing to Cheap Brain (rule-based)."
-            )
+            else:
+                target_brain = BrainType.CHEAP
+                target_reason = (
+                    f"Score {final_score} < T1({t1}) with low skill confidence ({skill_conf}). "
+                    "Routing to Cheap Brain (rule-based)."
+                )
 
         elif final_score < t2:
-            return BrainType.PLANNING, (
+            target_brain = BrainType.PLANNING
+            target_reason = (
                 f"Score {final_score} in [{t1}, {t2}). "
                 "Routing to Planning Brain with Skill Brain support + local mid-model."
             )
 
         elif final_score < t3:
-            return BrainType.PLANNING, (
+            target_brain = BrainType.PLANNING
+            target_reason = (
                 f"Score {final_score} in [{t2}, {t3}). "
                 "Hybrid mode: Planning Brain backed by Frontier for key segments."
             )
 
         else:
-            return BrainType.FRONTIER, (
+            target_brain = BrainType.FRONTIER
+            target_reason = (
                 f"Score {final_score} ≥ T3({t3}). "
                 "High-complexity / high-risk task. Routing to Frontier Brain."
             )
+
+        # --- cognitive budget check ---
+        if self.budget_tracker is not None:
+            decision = self._check_budget_for_brain(target_brain, final_score, dimension_scores, target_reason)
+            if decision is not None:
+                return decision
+
+        return target_brain, target_reason
 
     def decide(self, request: BrainRequest) -> RouterDecision:
         """Full pipeline: score → final score → select brain → build decision.
@@ -606,6 +620,111 @@ class CognitiveRouter:
             score = max(score, min(len(request.allowed_tools) * 2.0, 9.0))
 
         return round(score, 1)
+
+    # ------------------------------------------------------------------
+    # Cognitive budget gate
+    # ------------------------------------------------------------------
+
+    def _check_budget_for_brain(
+        self,
+        target_brain: BrainType,
+        final_score: float,
+        dim_scores: dict[str, float],
+        base_reason: str,
+    ) -> Optional[tuple[BrainType, str]]:
+        """Check whether the remaining budget allows using the target brain.
+
+        If the estimated cost of the target brain exceeds the remaining
+        monthly budget, this method walks down the downgrade chain
+        (FRONTIER → PLANNING → SKILL → CHEAP) until it finds a brain
+        whose estimated cost fits within the remaining budget.
+
+        Args:
+            target_brain: The brain tentatively selected by threshold routing.
+            final_score: Weighted final score (for reasoning context).
+            dim_scores: All 9 dimension scores (for reasoning context).
+            base_reason: Original routing reason from threshold-based selection.
+
+        Returns:
+            (downgraded_brain, reason) if a downgrade was required, or None
+            if the target brain fits within the remaining budget.
+        """
+        if self.budget_tracker is None:
+            return None
+
+        # ── Estimate cost for the target brain ──
+        cost_map: dict[BrainType, tuple[int, float]] = {
+            BrainType.FRONTIER: (4096, 0.015),   # (tokens, price_per_1k USD)
+            BrainType.PLANNING: (2000, 0.002),
+            BrainType.SKILL: (500, 0.0005),
+            BrainType.CHEAP: (200, 0.0),
+        }
+
+        tokens, rate_per_1k = cost_map.get(target_brain, (1500, 0.001))
+        estimated_cost = round((tokens / 1000.0) * rate_per_1k, 6)
+
+        # ── Get current budget state ──
+        try:
+            remaining = self.budget_tracker.get_remaining_budget()
+            monthly = self.budget_tracker.budget.monthly_budget_usd
+        except Exception:
+            logger.debug("Budget tracker query failed; skipping budget check", exc_info=True)
+            return None
+
+        # Budget is sufficient — no downgrade needed
+        if remaining >= estimated_cost:
+            return None
+
+        # ── Walk the downgrade chain ──
+        downgrade_chain: list[BrainType] = [
+            BrainType.FRONTIER,
+            BrainType.PLANNING,
+            BrainType.SKILL,
+            BrainType.CHEAP,
+        ]
+
+        try:
+            idx = downgrade_chain.index(target_brain)
+        except ValueError:
+            # Unknown brain type (e.g. MEMORY, ACTION, WORLD) —
+            # not in the chain; skip budget check gracefully
+            return None
+
+        for lower_idx in range(idx + 1, len(downgrade_chain)):
+            lower_brain = downgrade_chain[lower_idx]
+            lower_tokens, lower_rate = cost_map.get(lower_brain, (500, 0.001))
+            lower_cost = round((lower_tokens / 1000.0) * lower_rate, 6)
+
+            if remaining >= lower_cost:
+                budget_reason = (
+                    f"{base_reason} | Budget-aware downgrade: "
+                    f"{target_brain.value} → {lower_brain.value} "
+                    f"(est. ${estimated_cost:.4f} exceeds remaining ${remaining:.4f}, "
+                    f"downgraded to ${lower_cost:.4f})"
+                )
+                logger.info(
+                    "Cognitive budget downgrade: %s → %s (score=%.2f, remaining=$%.4f)",
+                    target_brain.value,
+                    lower_brain.value,
+                    final_score,
+                    remaining,
+                )
+                return lower_brain, budget_reason
+
+        # ── Even CHEAP barely fits — force it anyway ──
+        _, cheap_rate = cost_map[BrainType.CHEAP]
+        cheap_cost = round((200 / 1000.0) * cheap_rate, 6)
+        budget_reason = (
+            f"{base_reason} | Budget-aware downgrade: "
+            f"{target_brain.value} → CHEAP "
+            f"(budget nearly depleted: ${remaining:.4f} remaining of ${monthly:.2f} monthly)"
+        )
+        logger.warning(
+            "Cognitive budget: forced CHEAP — only $%.4f remaining (score=%.2f)",
+            remaining,
+            final_score,
+        )
+        return BrainType.CHEAP, budget_reason
 
     # ------------------------------------------------------------------
     # Helpers
