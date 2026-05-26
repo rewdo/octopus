@@ -15,6 +15,7 @@ Responsibilities:
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 from collections import deque
 from dataclasses import dataclass, field
@@ -922,8 +923,9 @@ class PlanningBrain(BaseBrain):
     ) -> Plan:
         """Decompose a task using an LLM via the API Manager.
 
-        This is the Phase 2 pathway. It sends a structured prompt to the
-        LLM and parses the result back into a Plan.
+        Sends a structured planning prompt to the LLM and parses the JSON
+        response into a Plan with SubTask DAG. On JSON parse failure, falls
+        back to rule-based template matching.
 
         Args:
             request: Original BrainRequest.
@@ -931,53 +933,122 @@ class PlanningBrain(BaseBrain):
 
         Returns:
             Structured Plan.
+
+        Raises:
+            ValueError: If LLM response is unparseable AND no template matches.
         """
-        prompt = self._build_llm_planning_prompt(request)
+        # Build messages in OpenAI chat format
+        system_prompt = self._build_llm_planning_prompt(request)
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": request.user_input},
+        ]
+
+        # Determine which API to use
+        api_name = request.metadata.get("api_name")
+        if api_name is None:
+            try:
+                api_name = api_manager.get_most_capable().name
+            except Exception:
+                api_name = api_manager.list_apis()[0].name if api_manager.list_apis() else "default"  # type: ignore[union-attr]
+
+        # Call the LLM
+        raw_response: dict[str, Any] = await api_manager.call(
+            api_name=api_name,
+            messages=messages,
+            temperature=0.2,
+            max_tokens=min(request.max_tokens or 2048, 4096),
+        )
+
+        # Extract content and usage from OpenAI-compatible response
+        choices: list[dict[str, Any]] = raw_response.get("choices", [])
+        if not choices:
+            raise ValueError(f"LLM returned empty choices: {raw_response}")
+        llm_content: str = choices[0].get("message", {}).get("content", "")
+        usage: dict[str, int] = raw_response.get("usage", {})
+
+        # Resolve API config for cost calculation
         try:
-            response = await api_manager.call(
-                prompt=prompt,
-                max_tokens=request.max_tokens,
-                temperature=0.2,  # Low temperature for structured output
+            api_config = api_manager.get_api(api_name)
+            input_tokens = usage.get("prompt_tokens", 0)
+            output_tokens = usage.get("completion_tokens", 0)
+            total_tokens = usage.get("total_tokens", input_tokens + output_tokens)
+            cost_usd = round(
+                (input_tokens / 1000) * api_config.price_per_1k_input
+                + (output_tokens / 1000) * api_config.price_per_1k_output,
+                6,
             )
-            return self._parse_llm_response(request, response)
         except Exception:
-            raise
+            total_tokens = usage.get("total_tokens", 0)
+            cost_usd = 0.0
+
+        # Parse JSON — on failure, fallback to rule templates
+        try:
+            plan = self._parse_llm_response(request, llm_content)
+        except (ValueError, json.JSONDecodeError) as parse_error:
+            # Fallback: try rule-based template matching
+            matched_template, confidence = self._match_template(request.user_input)
+            if matched_template is not None:
+                hint = self._extract_hint(request.user_input, matched_template)
+                plan = self._build_plan(
+                    request=request,
+                    template=matched_template,
+                    hint=hint,
+                    confidence=confidence,
+                    plan_type="rule",
+                )
+                plan.metadata["llm_fallback_reason"] = (
+                    f"JSON parse failed: {parse_error}; fell back to "
+                    f"template '{matched_template.name}'"
+                )
+            else:
+                plan = self._build_generic_plan(
+                    request=request,
+                    error=f"LLM JSON parse failed and no template matched: {parse_error}",
+                )
+
+        # Record LLM call cost in plan metadata
+        plan.metadata["llm_api_name"] = api_name
+        plan.metadata["llm_tokens_input"] = usage.get("prompt_tokens", 0)
+        plan.metadata["llm_tokens_output"] = usage.get("completion_tokens", 0)
+        plan.metadata["llm_tokens_total"] = total_tokens
+        plan.metadata["llm_cost_usd"] = cost_usd
+
+        return plan
 
     def _build_llm_planning_prompt(self, request: BrainRequest) -> str:
-        """Build the prompt for LLM-based task decomposition."""
-        return f"""You are a task planning engine. Decompose the following task into ordered subtasks.
+        """Build the system prompt for LLM-based task decomposition."""
+        # Include compiled context as additional guidance when available
+        context_hint = ""
+        if request.compiled_context:
+            context_hint = f"\n\nAdditional context: {request.compiled_context}"
 
-TASK: {request.user_input}
+        return f"""You are a task planning expert. Decompose the following task into subtasks.
+Return ONLY a JSON array of objects with keys:
+- id (string): unique subtask id
+- description (string): what this step does
+- dependencies (list of ids): which subtasks must complete first
+- estimated_complexity (string): trivial/simple/moderate/complex
+- suggested_brain (string): cheap/skill/action/memory/planning/frontier
+{context_hint}"""
 
-CONTEXT: {request.compiled_context or 'No additional context provided.'}
+    def _parse_llm_response(self, request: BrainRequest, llm_text: str) -> Plan:
+        """Parse LLM response text into a structured Plan.
 
-CONSTRAINTS:
-- Complexity: {request.complexity.name if request.complexity else 'unknown'}
-- Available tools: {request.allowed_tools or 'all'}
+        Args:
+            request: Original BrainRequest.
+            llm_text: Raw text content from the LLM response.
 
-Return a JSON array of subtasks. Each subtask must have:
-- id: unique string identifier
-- description: what this subtask does (one sentence)
-- dependencies: list of subtask IDs that must complete before this one
-- estimated_complexity: "trivial" | "simple" | "moderate" | "complex"
-- suggested_brain: "cheap" | "skill" | "action" | "memory" | "planning" | "frontier"
+        Returns:
+            Structured Plan.
 
-Output ONLY valid JSON (no markdown fences):"""
-
-    def _parse_llm_response(self, request: BrainRequest, response: Any) -> Plan:
-        """Parse LLM response into a structured Plan."""
+        Raises:
+            ValueError: If the text cannot be parsed as valid JSON.
+        """
         import json
 
-        # Handle different response types
-        if isinstance(response, dict):
-            text = response.get("content", response.get("text", str(response)))
-        elif isinstance(response, str):
-            text = response
-        else:
-            text = str(response)
-
         # Strip markdown code fences if present
-        text = text.strip()
+        text = llm_text.strip()
         if text.startswith("```"):
             # Remove opening fence
             text = re.sub(r"^```(?:json)?\s*\n?", "", text)

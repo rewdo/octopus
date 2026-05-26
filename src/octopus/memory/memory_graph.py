@@ -147,6 +147,66 @@ class MemoryGraph:
         self._node_index: dict[str, MemoryNode] = {}
         self._type_index: dict[str, set[str]] = {t: set() for t in NodeType.ALL}
 
+    # ── Vector / Embedding Helpers ────────────────────────────────────
+
+    @staticmethod
+    def _simple_embed(text: str, dim: int = 100) -> list[float]:
+        """Generate a simple pseudo-vector embedding from text using word-frequency
+        hashing — no external dependencies (NumPy, ChromaDB, etc).
+
+        Algorithm:
+          1. Lowercase & split into tokens.
+          2. Hash each token into [0 … dim-1] and increment that bucket.
+          3. L2-normalise the resulting vector.
+
+        Args:
+            text: Arbitrary text.
+            dim: Desired vector dimension (default 100).
+
+        Returns:
+            A unit-length pseudo-embedding vector.
+        """
+        words = text.lower().split()
+        vec = [0.0] * dim
+        for w in words:
+            h = hash(w) % dim
+            vec[h] += 1.0
+        norm = sum(v * v for v in vec) ** 0.5
+        if norm > 0:
+            vec = [v / norm for v in vec]
+        return vec
+
+    @staticmethod
+    def _cosine_similarity(a: list[float], b: list[float]) -> float:
+        """Compute cosine similarity between two vectors in pure Python.
+
+        Returns 0.0 when either vector is zero-length.
+        """
+        if len(a) != len(b):
+            raise ValueError(
+                f"Vector dimension mismatch: {len(a)} vs {len(b)}"
+            )
+        dot = sum(ai * bi for ai, bi in zip(a, b))
+        norm_a = sum(ai * ai for ai in a) ** 0.5
+        norm_b = sum(bi * bi for bi in b) ** 0.5
+        if norm_a == 0.0 or norm_b == 0.0:
+            return 0.0
+        return dot / (norm_a * norm_b)
+
+    def embed_text(self, text: str) -> list[float]:
+        """Public API: embed arbitrary text into a pseudo-vector.
+
+        Phase 1 uses the lightweight word-frequency hash; later phases
+        may swap in a real embedding model without changing callers.
+
+        Args:
+            text: Input text.
+
+        Returns:
+            Unit-length pseudo-embedding vector (100-dimensional).
+        """
+        return self._simple_embed(text)
+
     # ── Node Operations ─────────────────────────────────────────────────
 
     def add_node(
@@ -193,6 +253,10 @@ class MemoryGraph:
             pass  # caller provided importance, keep as-is
         else:
             node.importance = self.calculate_importance(node)
+
+        # Auto-compute embedding if not explicitly provided
+        if node.embedding is None and node.content:
+            node.embedding = self._simple_embed(node.content)
 
         self._graph.add_node(node.node_id, node_type=node.node_type, data=node)
         self._node_index[node.node_id] = node
@@ -382,28 +446,70 @@ class MemoryGraph:
 
     # ── Search ──────────────────────────────────────────────────────────
 
+    def search_semantic(
+        self,
+        query: str,
+        top_k: int = 10,
+    ) -> list[tuple[MemoryNode, float]]:
+        """Semantic search using cosine similarity on pseudo-embeddings.
+
+        Computes a query embedding and compares it against every node's
+        stored embedding.  Returns (node, score) tuples ordered by
+        descending similarity.
+
+        Nodes without an embedding are skipped.
+
+        Args:
+            query: Natural-language query string.
+            top_k: Maximum number of results to return.
+
+        Returns:
+            List of (MemoryNode, similarity_score) tuples.
+        """
+        if not query.strip():
+            return []
+
+        query_vec = self._simple_embed(query)
+
+        scored: list[tuple[MemoryNode, float]] = []
+        for node in self._node_index.values():
+            if node.embedding is None:
+                continue
+            sim = self._cosine_similarity(query_vec, node.embedding)
+            if sim > 0:
+                scored.append((node, sim))
+
+        scored.sort(key=lambda x: x[1], reverse=True)
+        return scored[:top_k]
+
     def search(
         self,
         query_text: str,
         top_k: int = 10,
+        semantic_weight: float = 0.5,
     ) -> list[MemoryNode]:
-        """Search memories by keyword matching (Phase 1 fallback).
+        """Search memories by combining keyword matching + semantic embedding.
 
-        Phase 2: will use embedding similarity when available.
+        Runs both a keyword (TF-like) scorer and a cosine-similarity
+        semantic scorer, min-max normalises each channel independently,
+        then blends them via *semantic_weight*.  Without embeddings or
+        keyword hits the node is excluded.
 
         Args:
             query_text: Search query string.
             top_k: Max number of results.
+            semantic_weight: Blend weight for the semantic score (0..1).
+                              Keyword score gets ``1 - semantic_weight``.
 
         Returns:
-            List of matching MemoryNode objects, scored by relevance.
+            List of matching MemoryNode objects, ordered by combined score.
         """
         query_words = query_text.lower().split()
         if not query_words:
             return []
 
-        scored: list[tuple[MemoryNode, float]] = []
-
+        # ── 1. Keyword scoring ─────────────────────────────────────────
+        kw_scores: dict[str, float] = {}
         for node in self._node_index.values():
             content_lower = node.content.lower()
             score = 0.0
@@ -426,11 +532,43 @@ class MemoryGraph:
             if score > 0:
                 # Boost by importance
                 score *= (1.0 + node.importance)
-                scored.append((node, score))
+                kw_scores[node.node_id] = score
 
-        # Sort by score descending
-        scored.sort(key=lambda x: x[1], reverse=True)
-        return [node for node, _ in scored[:top_k]]
+        # ── 2. Semantic scoring ────────────────────────────────────────
+        sem_results = self.search_semantic(
+            query_text, top_k=len(self._node_index) or 1
+        )
+        sem_scores: dict[str, float] = {n.node_id: s for n, s in sem_results}
+
+        # ── 3. Min-max normalise each channel ──────────────────────────
+        def _minmax_normalise(scores: dict[str, float]) -> dict[str, float]:
+            if not scores:
+                return {}
+            vals = list(scores.values())
+            lo, hi = min(vals), max(vals)
+            if hi == lo:
+                return {k: 1.0 for k in scores}
+            return {k: (v - lo) / (hi - lo) for k, v in scores.items()}
+
+        kw_norm = _minmax_normalise(kw_scores)
+        sem_norm = _minmax_normalise(sem_scores)
+
+        # ── 4. Blend ───────────────────────────────────────────────────
+        kw_w = 1.0 - semantic_weight
+        sw = semantic_weight
+
+        all_ids = set(kw_scores.keys()) | set(sem_scores.keys())
+        combined: list[tuple[MemoryNode, float]] = []
+        for nid in all_ids:
+            node = self._node_index.get(nid)
+            if node is None:
+                continue
+            c = kw_w * kw_norm.get(nid, 0.0) + sw * sem_norm.get(nid, 0.0)
+            if c > 0:
+                combined.append((node, c))
+
+        combined.sort(key=lambda x: x[1], reverse=True)
+        return [node for node, _ in combined[:top_k]]
 
     # ── Importance Scoring ──────────────────────────────────────────────
 
