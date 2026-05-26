@@ -38,6 +38,7 @@ from octopus.brains.frontier_brain import FrontierBrain
 from octopus.brains.memory_brain import MemoryBrain
 from octopus.brains.planning_brain import PlanningBrain
 from octopus.brains.skill_brain import SkillBrain
+from octopus.brains.world_brain import WorldBrain
 from octopus.config import OctopusConfig
 from octopus.memory.context_compiler import ContextCompiler
 from octopus.memory.layers import (
@@ -116,6 +117,11 @@ class OctopusAgent:
             config=config,
         )
 
+        self._world_brain = WorldBrain(
+            world_state=None,
+            config=config,
+        )
+
         # ── Brain type → instance mapping (for dispatch) ──
         self._brain_map: dict[BrainType, Any] = {
             BrainType.CHEAP: self._cheap_brain,
@@ -124,6 +130,7 @@ class OctopusAgent:
             BrainType.MEMORY: self._memory_brain,
             BrainType.PLANNING: self._planning_brain,
             BrainType.FRONTIER: self._frontier_brain,
+            BrainType.WORLD: self._world_brain,
         }
 
         # ── Router ──
@@ -185,8 +192,27 @@ class OctopusAgent:
         errors: list[str] = []
 
         # ── Stage 1: Route ──────────────────────────────────────────────
+        # Pre-check: if a specialized brain (World, Memory) claims the task,
+        # skip the generic router and dispatch directly.
         try:
-            decision = self._router.analyze(task, task_id=task_id, **kwargs)
+            # Build a quick preview request for pre-checks
+            preview = BrainRequest(task_id=task_id, user_input=task)
+            if self._world_brain.can_handle(preview):
+                decision = RouterDecision(
+                    selected_brain=BrainType.WORLD,
+                    final_score=0.0,
+                    dimension_scores={},
+                    reasoning="World Brain keyword match — direct dispatch",
+                )
+            elif self._memory_brain.can_handle(preview):
+                decision = RouterDecision(
+                    selected_brain=BrainType.MEMORY,
+                    final_score=0.0,
+                    dimension_scores={},
+                    reasoning="Memory Brain keyword match — direct dispatch",
+                )
+            else:
+                decision = self._router.analyze(task, task_id=task_id, **kwargs)
         except Exception as exc:
             errors.append(f"Routing failed: {exc}")
             # Fallback: use Cheap Brain

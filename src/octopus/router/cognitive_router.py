@@ -386,16 +386,16 @@ class CognitiveRouter:
         text = request.user_input or ""
         score = 1.0
 
-        # Length-based
+        # Length-based (tuned to avoid short-text inflation)
         length = len(text)
-        if length < 20:
+        if length < 30:
             score += 0.5
-        elif length < 100:
-            score += 2.0
-        elif length < 500:
-            score += 4.0
+        elif length < 200:
+            score += 1.5
+        elif length < 800:
+            score += 3.0
         else:
-            score += 6.0
+            score += 5.0
 
         # Code / math signals
         code_hits = len(_CODE_PATTERNS.findall(text))
@@ -403,8 +403,17 @@ class CognitiveRouter:
         score += min(code_hits * 0.8, 3.0)
         score += min(math_hits * 1.0, 2.0)
 
-        # Deep reasoning keywords
-        if re.search(r"\b(explain|analyze|evaluate|summarize|compare|contrast|why|how)\b", text, re.IGNORECASE):
+        # Greeting / casual detection — suppress complexity for simple interactions
+        if re.search(r"\b(hi|hello|hey|good morning|good evening|thanks|thank you|bye|ok|okay)\b", text, re.IGNORECASE):
+            score -= 1.0
+
+        # Deep reasoning keywords (exclude "how"/"why" for short texts to avoid false positives)
+        reasoning_re = (
+            r"\b(explain|analyze|evaluate|summarize|compare|contrast)\b"
+            if length < 30
+            else r"\b(explain|analyze|evaluate|summarize|compare|contrast|why|how)\b"
+        )
+        if re.search(reasoning_re, text, re.IGNORECASE):
             score += 1.0
 
         # Explicit complexity from request

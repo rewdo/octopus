@@ -181,7 +181,7 @@ def run(
     """
     config = _load_config(workspace)
 
-    console.print(f"\n[bold cyan]🐙 Task:[/bold cyan] {task}")
+    console.print(f"\n[bold cyan]Task:[/bold cyan] {task}")
     if model:
         console.print(f"[dim]Model override: {model}[/dim]")
 
