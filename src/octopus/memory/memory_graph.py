@@ -13,6 +13,7 @@ Each memory node carries: timestamp, importance_score (0-1), source, optional em
 from __future__ import annotations
 
 import json
+import logging
 import pickle
 import uuid
 from dataclasses import dataclass, field
@@ -21,6 +22,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 import networkx as nx
+
+logger = logging.getLogger(__name__)
 
 
 # ── Node & Edge Type Constants ──────────────────────────────────────────────
@@ -154,6 +157,9 @@ class MemoryGraph:
     ) -> str:
         """Add a memory node to the graph.
 
+        If importance is not provided in properties, it is automatically
+        calculated via calculate_importance().
+
         Args:
             node_type: Category label (e.g. 'Event', 'Fact').
             node_id: Unique id; auto-generated if None.
@@ -181,6 +187,12 @@ class MemoryGraph:
             metadata=properties.get("metadata", {}),
             embedding=properties.get("embedding"),
         )
+
+        # Auto-calculate importance if not explicitly provided in properties
+        if properties and "importance" in properties:
+            pass  # caller provided importance, keep as-is
+        else:
+            node.importance = self.calculate_importance(node)
 
         self._graph.add_node(node.node_id, node_type=node.node_type, data=node)
         self._node_index[node.node_id] = node
@@ -423,71 +435,77 @@ class MemoryGraph:
     # ── Importance Scoring ──────────────────────────────────────────────
 
     def calculate_importance(self, memory: MemoryNode) -> float:
-        """Auto-score a memory's importance based on heuristics.
+        """Auto-score a memory's importance based on heuristics (0-1).
 
-        Scoring factors:
-          - Recency: newer memories get a mild boost (decays over 30 days).
-          - Content length: longer content often signals richer information.
-          - Connections: more edges → more structural importance.
-          - Source: user_input and inference are weighted higher.
-          - Keyword signals: presence of task/goal/error/learned indicators.
+        Scoring dimensions:
+          - Long-term relevance: content contains
+            "project/error/bug/fix/decision/preference" → +0.3
+          - Duplicate frequency: count similar node occurrences → +0.2
+          - User preference signals: content contains
+            "prefer/like/hate/always/never" → +0.2
+          - Content length: >100 chars → +0.2
+          - Time decay (deduction):
+            >30 days → -0.3, >7 days → -0.1
 
         Args:
             memory: The MemoryNode to score.
 
         Returns:
-            Importance score 0..1.
+            Importance score clamped to 0..1.
         """
         score = 0.0
-
-        # ── Recency (decay over 30 days) ──
-        age_days = (datetime.now() - memory.timestamp).total_seconds() / 86400
-        recency = max(0.0, 1.0 - age_days / 30.0)
-        score += recency * 0.2
-
-        # ── Content richness ──
-        content_len = len(memory.content)
-        if content_len > 200:
-            score += 0.2
-        elif content_len > 50:
-            score += 0.1
-
-        # ── Graph connectivity ──
-        if memory.node_id in self._graph:
-            degree = self._graph.degree(memory.node_id)
-            if degree > 5:
-                score += 0.2
-            elif degree > 2:
-                score += 0.1
-
-        # ── Source weight ──
-        source_weights: dict[str, float] = {
-            "user_input": 0.15,
-            "inference": 0.12,
-            "skill_execution": 0.08,
-            "system": 0.05,
-        }
-        score += source_weights.get(memory.source, 0.05)
-
-        # ── Keyword signals ──
         content_lower = memory.content.lower()
-        signal_keywords = ["important", "critical", "goal", "deadline", "error", "learned", "preference"]
-        for kw in signal_keywords:
-            if kw in content_lower:
-                score += 0.05
-                break  # only count once
 
-        return min(1.0, max(0.0, score))
+        # ── Long-term relevance keywords ──
+        relevance_keywords = ["project", "error", "bug", "fix", "decision", "preference"]
+        if any(kw in content_lower for kw in relevance_keywords):
+            score += 0.3
+
+        # ── Duplicate / similar node frequency ──
+        similar_count = 0
+        words_a = set(content_lower.split())
+        if words_a:
+            for other in self._node_index.values():
+                if other.node_id == memory.node_id:
+                    continue
+                words_b = set(other.content.lower().split())
+                if not words_b:
+                    continue
+                overlap = len(words_a & words_b) / len(words_a | words_b)
+                if overlap > 0.5:
+                    similar_count += 1
+        if similar_count > 0:
+            score += 0.2
+
+        # ── User preference signals ──
+        preference_keywords = ["prefer", "like", "hate", "always", "never"]
+        if any(kw in content_lower for kw in preference_keywords):
+            score += 0.2
+
+        # ── Content length ──
+        if len(memory.content) > 100:
+            score += 0.2
+
+        # ── Time decay (deduction) ──
+        age_days = (datetime.now() - memory.timestamp).total_seconds() / 86400
+        if age_days > 30:
+            score -= 0.3
+        elif age_days > 7:
+            score -= 0.1
+
+        return max(0.0, min(1.0, score))
 
     # ── Garbage Collection ──────────────────────────────────────────────
 
     def garbage_collect(self, threshold: float = 0.3) -> int:
         """Remove memories with importance below threshold.
 
-        Skips nodes that are highly connected (>3 edges) even if importance is low.
+        Recalculates importance for every node, then deletes those
+        whose recalculated importance falls below the given threshold.
+        Logs each removal and a final summary.
 
         Args:
-            threshold: Minimum importance to keep.
+            threshold: Minimum importance to keep (default 0.3).
 
         Returns:
             Number of nodes removed.
@@ -495,20 +513,28 @@ class MemoryGraph:
         to_remove: list[str] = []
 
         for node_id, node in self._node_index.items():
-            # Recalculate importance
             importance = self.calculate_importance(node)
-
+            node.importance = importance  # update to latest score
             if importance < threshold:
-                # Protect highly connected nodes
-                degree = self._graph.degree(node_id) if node_id in self._graph else 0
-                if degree <= 3:
-                    to_remove.append(node_id)
+                to_remove.append(node_id)
 
         removed = 0
         for node_id in to_remove:
+            node = self._node_index.get(node_id)
+            logger.info(
+                "Garbage collecting node %s (importance=%.2f, type=%s)",
+                node_id,
+                node.importance if node else 0.0,
+                node.node_type if node else "unknown",
+            )
             if self.remove_node(node_id):
                 removed += 1
 
+        logger.info(
+            "Garbage collection complete: removed %d nodes (threshold=%.2f)",
+            removed,
+            threshold,
+        )
         return removed
 
     # ── Persistence ─────────────────────────────────────────────────────

@@ -49,6 +49,7 @@ from octopus.memory.layers import (
 )
 from octopus.memory.memory_graph import MemoryGraph
 from octopus.router.cognitive_router import CognitiveRouter, RouterDecision
+from octopus.heal.self_healer import SelfHealer
 from octopus.skills.skill_engine import SkillRegistry
 
 
@@ -142,6 +143,11 @@ class OctopusAgent:
             log_path=config.workspace_dir / "routing_log.jsonl",
         )
 
+        # ── Self Healer ──
+        self._healer = SelfHealer(
+            checkpoint_dir=config.workspace_dir / "checkpoints",
+        )
+
         # ── Load skills from workspace ──
         skills_dir = config.workspace_dir / "skills"
         if skills_dir.exists():
@@ -194,6 +200,9 @@ class OctopusAgent:
         # ── Stage 1: Route ──────────────────────────────────────────────
         # Pre-check: if a specialized brain (World, Memory) claims the task,
         # skip the generic router and dispatch directly.
+        self._healer.save_checkpoint(task_id, "stage_1_route", {
+            "task_id": task_id, "user_input": task, "brain_type": None, "stage": "stage_1_route"
+        })
         try:
             # Build a quick preview request for pre-checks
             preview = BrainRequest(task_id=task_id, user_input=task)
@@ -214,7 +223,23 @@ class OctopusAgent:
             else:
                 decision = self._router.analyze(task, task_id=task_id, **kwargs)
         except Exception as exc:
-            errors.append(f"Routing failed: {exc}")
+            recovery = self._healer.recover(task_id, exc)
+            if recovery.get("action") == "abort":
+                return {
+                    "success": False,
+                    "output": f"Routing aborted: {exc}",
+                    "brain_used": "none",
+                    "cost": 0.0,
+                    "tokens": 0,
+                    "latency_ms": round((time.perf_counter() - t_start) * 1000, 2),
+                    "task_id": task_id,
+                    "timestamp": datetime.now().isoformat(),
+                    "decision": {},
+                    "errors": [f"Routing abort: {exc}"],
+                    "structured_output": None,
+                    "tool_calls": None,
+                }
+            errors.append(f"Routing failed ({recovery.get('action', 'alert')}): {exc}")
             # Fallback: use Cheap Brain
             decision = RouterDecision(
                 selected_brain=BrainType.CHEAP,
@@ -226,6 +251,10 @@ class OctopusAgent:
             )
 
         # ── Stage 2: Compile context ────────────────────────────────────
+        self._healer.save_checkpoint(task_id, "stage_2_compile", {
+            "task_id": task_id, "user_input": task,
+            "brain_type": decision.selected_brain.value, "stage": "stage_2_compile"
+        })
         compiled_context = ""
         try:
             request_preview = BrainRequest(
@@ -253,6 +282,10 @@ class OctopusAgent:
             compiled_context = ""  # Non-fatal — continue without context
 
         # ── Stage 3: Build BrainRequest ─────────────────────────────────
+        self._healer.save_checkpoint(task_id, "stage_3_request", {
+            "task_id": task_id, "user_input": task,
+            "brain_type": decision.selected_brain.value, "stage": "stage_3_request"
+        })
         # Match relevant skills from task text if not explicitly provided
         relevant_skills = kwargs.get("relevant_skills", [])
         if not relevant_skills and self._skill_registry.count() > 0:
@@ -468,7 +501,9 @@ class OctopusAgent:
             # Ultimate fallback: Cheap Brain
             brain = self._cheap_brain
 
-        return await brain.process(request)
+        return await self._healer.execute_with_retry(
+            brain.process, request, task_id=request.task_id,
+        )
 
     async def _fallback_brain(
         self,
