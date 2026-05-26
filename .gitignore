@@ -60,3 +60,7 @@ logs/
 # Local configuration overrides
 *.local.yaml
 *.local.json
+
+# Runtime workspace artifacts
+*-workspace/
+_e2e_*
