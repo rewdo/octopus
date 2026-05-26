@@ -119,7 +119,10 @@ class APIManager:
             Raw API response dict.
         """
         api = self.get_api(api_name)
-        url = f"{api.base_url.rstrip('/')}/v1/chat/completions"
+        base = api.base_url.rstrip("/")
+        if base.endswith("/v1"):
+            base = base[:-3]
+        url = f"{base}/v1/chat/completions"
         headers = {
             "Authorization": f"Bearer {self.resolve_api_key(api)}",
             "Content-Type": "application/json",

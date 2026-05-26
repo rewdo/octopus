@@ -1,0 +1,68 @@
+# Octopus Configuration — Kimi API (Moonshot)
+config_version: "1.0"
+workspace_dir: ./octopus-workspace
+
+apis:
+  - name: kimi-cheap
+    provider: moonshot
+    base_url: https://api.moonshot.cn/v1
+    api_key: $KIMI_API_KEY
+    model: moonshot-v1-8k
+    price_per_1k_input: 0.0017
+    price_per_1k_output: 0.0017
+    max_tokens: 8192
+    priority: 0
+
+  - name: kimi-standard
+    provider: moonshot
+    base_url: https://api.moonshot.cn/v1
+    api_key: $KIMI_API_KEY
+    model: moonshot-v1-32k
+    price_per_1k_input: 0.0034
+    price_per_1k_output: 0.0034
+    max_tokens: 32768
+    priority: 1
+
+  - name: kimi-frontier
+    provider: moonshot
+    base_url: https://api.moonshot.cn/v1
+    api_key: $KIMI_API_KEY
+    model: moonshot-v1-128k
+    price_per_1k_input: 0.0086
+    price_per_1k_output: 0.0086
+    max_tokens: 131072
+    priority: 2
+
+budget:
+  monthly_budget_usd: 10.0
+  max_per_task_usd: 0.10
+  warn_threshold_pct: 80.0
+  track_costs: true
+
+brains:
+  cheap: kimi-cheap
+  skill: local_engine
+  planning: kimi-standard
+  frontier: kimi-frontier
+
+memory:
+  graph_backend: networkx
+  vector_backend: chromadb
+  vector_dimensions: 1024
+  working_memory_size: 50
+  importance_threshold: 0.3
+  gc_interval_hours: 24
+
+router_thresholds:
+  t1: 2.0
+  t2: 5.0
+  t3: 7.0
+
+router_weights:
+  alpha: 1.0
+  beta: 0.8
+  gamma: 1.2
+  delta: 0.5
+  epsilon: 0.6
+  zeta: 0.4
+  eta: 0.3
