@@ -4,11 +4,11 @@ Octopus multi-brain architecture package.
 Provides the seven specialized brains:
     - CheapBrain: Ultra-low-cost intent classification + entity extraction
     - SkillBrain: Pre-compiled skill workflow execution
-    - MemoryBrain (future): Long-term memory retrieval and reasoning
-    - PlanningBrain (future): Task decomposition and planning
+    - MemoryBrain: Long-term memory retrieval and reasoning
+    - PlanningBrain: Task decomposition and DAG-based planning
     - ActionBrain: Tool execution engine (shell, file, web, code)
     - WorldBrain (future): World state maintenance
-    - FrontierBrain (future): Cloud LLM reasoning
+    - FrontierBrain: Cloud LLM reasoning
 """
 
 from .base import (
@@ -20,6 +20,9 @@ from .base import (
     TaskRisk,
 )
 from .cheap_brain import CheapBrain
+from .frontier_brain import FrontierBrain
+from .memory_brain import MemoryBrain
+from .planning_brain import PlanningBrain, SubTask, Plan
 from .skill_brain import SkillBrain, SkillRegistry
 from .action_brain import ActionBrain
 
@@ -33,8 +36,14 @@ __all__ = [
     "TaskRisk",
     # Brains
     "CheapBrain",
+    "FrontierBrain",
+    "MemoryBrain",
+    "PlanningBrain",
     "SkillBrain",
     "ActionBrain",
     # Engine
     "SkillRegistry",
+    # Planning types
+    "SubTask",
+    "Plan",
 ]

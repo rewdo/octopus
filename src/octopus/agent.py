@@ -34,6 +34,9 @@ from octopus.api.cost_tracker import CostTracker
 from octopus.brains.action_brain import ActionBrain
 from octopus.brains.base import BrainRequest, BrainResponse, BrainType
 from octopus.brains.cheap_brain import CheapBrain
+from octopus.brains.frontier_brain import FrontierBrain
+from octopus.brains.memory_brain import MemoryBrain
+from octopus.brains.planning_brain import PlanningBrain
 from octopus.brains.skill_brain import SkillBrain
 from octopus.config import OctopusConfig
 from octopus.memory.context_compiler import ContextCompiler
@@ -96,14 +99,31 @@ class OctopusAgent:
             workspace_dir=config.workspace_dir,
             config=config,
         )
+        self._frontier_brain = FrontierBrain(
+            api_manager=self._api_manager,
+            cost_tracker=self._cost_tracker,
+            config=config,
+        )
+
+        self._memory_brain = MemoryBrain(
+            memory_graph=self._memory_graph,
+            episodic=self._episodic_memory,
+            semantic=self._semantic_memory,
+            config=config,
+        )
+
+        self._planning_brain = PlanningBrain(
+            config=config,
+        )
 
         # ── Brain type → instance mapping (for dispatch) ──
         self._brain_map: dict[BrainType, Any] = {
             BrainType.CHEAP: self._cheap_brain,
             BrainType.SKILL: self._skill_brain,
             BrainType.ACTION: self._action_brain,
-            # Planning, Frontier, Memory, World — not yet implemented
-            # They will fallback to CHEAP or SKILL in _dispatch()
+            BrainType.MEMORY: self._memory_brain,
+            BrainType.PLANNING: self._planning_brain,
+            BrainType.FRONTIER: self._frontier_brain,
         }
 
         # ── Router ──
