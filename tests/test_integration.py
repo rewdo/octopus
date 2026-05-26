@@ -401,7 +401,7 @@ async def test_very_long_task(agent: OctopusAgent) -> None:
 @pytest.mark.asyncio
 async def test_task_with_unicode_emoji(agent: OctopusAgent) -> None:
     """Task with emoji and Unicode should be handled correctly."""
-    result = await agent.run("Hello 🌍 world! 测试繁體字 🚀")
+    result = await agent.run("Hello [globe] world! 测试繁體字 [rocket]")
 
     assert result["success"] is True
 

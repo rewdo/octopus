@@ -128,7 +128,7 @@ def init(
 
     config.save(config_path)
 
-    console.print(f"[green]✓[/green] Workspace initialized at {ws_path.absolute()}")
+    console.print(f"[green][v][/green] Workspace initialized at {ws_path.absolute()}")
     console.print(f"  Config: {config_path}")
     console.print(f"  APIs configured: {len(config.apis)}")
 
@@ -220,7 +220,7 @@ def run(
     decision = result.get("decision", {})
     dim_scores = decision.get("dimension_scores", {})
 
-    decision_table = Table(title="🧭 Router Decision")
+    decision_table = Table(title="Router Decision")
     decision_table.add_column("Metric", style="cyan")
     decision_table.add_column("Value", style="green")
     decision_table.add_row("Brain Selected", f"[bold]{decision.get('selected_brain', '?').upper()}[/bold]")
@@ -229,13 +229,13 @@ def run(
 
     if dim_scores:
         for dim, score in dim_scores.items():
-            emoji = "🔴" if score >= 7 else "🟡" if score >= 4 else "🟢"
+            emoji = "[HIGH]" if score >= 7 else "[MID]" if score >= 4 else "[LOW]"
             decision_table.add_row(f"  {dim}", f"{emoji} {score:.2f}")
 
     console.print(decision_table)
 
     # Result panel
-    status_icon = "✅" if result.get("success") else "❌"
+    status_icon = "[OK]" if result.get("success") else "[FAIL]"
     result_panel = Panel(
         result.get("output", "(no output)")[:2000],
         title=f"{status_icon} Result from [{decision.get('selected_brain', '?').upper()}] Brain",
@@ -244,7 +244,7 @@ def run(
     console.print(result_panel)
 
     # Metrics table
-    metrics_table = Table(title="📊 Metrics")
+    metrics_table = Table(title="Metrics")
     metrics_table.add_column("Metric", style="cyan")
     metrics_table.add_column("Value", style="yellow")
     metrics_table.add_row("Latency", f"{result.get('latency_ms', 0):.1f} ms")
@@ -263,7 +263,7 @@ def run(
     # Memory status
     mem_stats = agent.status()["memory"]
     console.print(
-        f"\n[dim]🧠 Memory: {mem_stats['graph']['total_nodes']} nodes, "
+        f"\n[dim]Memory: {mem_stats['graph']['total_nodes']} nodes, "
         f"{mem_stats['working_memory_items']} working, "
         f"{mem_stats['episodic_events']} events[/dim]"
     )
@@ -285,7 +285,7 @@ def status(
     config = _load_config(workspace)
 
     # Brain status
-    brain_table = Table(title="🧠 Brain Status")
+    brain_table = Table(title="Brain Status")
     brain_table.add_column("Brain", style="cyan")
     brain_table.add_column("Backend", style="green")
     brain_table.add_column("Status", style="yellow")
@@ -301,7 +301,7 @@ def status(
     ]
 
     for name, backend in brains:
-        brain_table.add_row(name, backend, "✓ ready")
+        brain_table.add_row(name, backend, "[v] ready")
 
     console.print(brain_table)
 
@@ -311,7 +311,7 @@ def status(
         f"Max per task: [bold]${config.budget.max_per_task_usd:.2f}[/bold]\n"
         f"Warn at: [yellow]{config.budget.warn_threshold_pct:.0f}%[/yellow]\n"
         f"Tracking: {'[green]enabled[/green]' if config.budget.track_costs else '[red]disabled[/red]'}",
-        title="💰 Budget",
+        title="Budget",
     )
     console.print(budget_panel)
 
@@ -322,7 +322,7 @@ def status(
         f"Working memory cap: {config.memory.working_memory_size} items\n"
         f"Importance threshold: {config.memory.importance_threshold}\n"
         f"GC interval: {config.memory.gc_interval_hours}h",
-        title="🧠 Memory",
+        title="Memory",
     )
     console.print(memory_panel)
 
