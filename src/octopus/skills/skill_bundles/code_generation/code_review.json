@@ -1,0 +1,22 @@
+{
+  "name": "code_review",
+  "version": "1.0.0",
+  "category": "code_generation",
+  "description": "Review code for bugs, security issues, performance problems, and style violations. Returns structured review with severity levels.",
+  "author": "octopus",
+  "tags": ["code", "review", "audit", "quality", "security"],
+  "cost_estimate": 0.004,
+  "success_rate": 0.85,
+  "steps": [
+    {
+      "action": "call_llm",
+      "params": {
+        "prompt_template": "Review the following {language} code. Identify bugs, security vulnerabilities, performance issues, and style problems. Rate each finding by severity (critical/high/medium/low) and suggest fixes:\n\n```{language}\n{input_text}\n```",
+        "max_tokens": 1500,
+        "temperature": 0.3
+      },
+      "on_error": "retry",
+      "description": "Review code for issues with severity ratings"
+    }
+  ]
+}

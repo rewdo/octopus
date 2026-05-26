@@ -1,0 +1,22 @@
+{
+  "name": "text_translate",
+  "version": "1.0.0",
+  "category": "text_processing",
+  "description": "Translate text between languages. Auto-detects source language if not specified.",
+  "author": "octopus",
+  "tags": ["text", "translation", "language", "multilingual"],
+  "cost_estimate": 0.0015,
+  "success_rate": 0.92,
+  "steps": [
+    {
+      "action": "call_llm",
+      "params": {
+        "prompt_template": "Translate the following text from {source_lang} to {target_lang}. Preserve the original meaning, tone, and formatting:\n\n{input_text}",
+        "max_tokens": 1000,
+        "temperature": 0.2
+      },
+      "on_error": "retry",
+      "description": "Translate text to target language"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "name": "code_test_gen",
+  "version": "1.0.0",
+  "category": "code_generation",
+  "description": "Generate unit tests for code. Supports pytest, unittest, Jest, Mocha, and other frameworks.",
+  "author": "octopus",
+  "tags": ["code", "testing", "unit-test", "tdd", "quality"],
+  "cost_estimate": 0.004,
+  "success_rate": 0.83,
+  "steps": [
+    {
+      "action": "call_llm",
+      "params": {
+        "prompt_template": "Generate comprehensive {test_framework} unit tests for the following {language} code. Include tests for: normal cases, edge cases, error conditions, and boundary values. Use proper mocking where needed:\n\n```{language}\n{input_text}\n```",
+        "max_tokens": 1500,
+        "temperature": 0.3
+      },
+      "on_error": "retry",
+      "description": "Generate unit tests with edge case coverage"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "name": "extract_json",
+  "version": "1.0.0",
+  "category": "data_extraction",
+  "description": "Extract and parse JSON objects/arrays embedded in text. Returns structured data with schema validation.",
+  "author": "octopus",
+  "tags": ["extract", "json", "parse", "structure", "data"],
+  "cost_estimate": 0.0005,
+  "success_rate": 0.94,
+  "steps": [
+    {
+      "action": "call_llm",
+      "params": {
+        "prompt_template": "Extract and parse any JSON objects or arrays from the following text. Return the extracted JSON as-is with no additional text:\n\n{input_text}",
+        "max_tokens": 500,
+        "temperature": 0.1
+      },
+      "on_error": "retry",
+      "description": "Extract embedded JSON from text"
+    }
+  ]
+}

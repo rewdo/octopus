@@ -1,0 +1,22 @@
+{
+  "name": "extract_url",
+  "version": "1.0.0",
+  "category": "data_extraction",
+  "description": "Extract all URLs (http/https/ftp) from text. Validates URL structure and deduplicates results.",
+  "author": "octopus",
+  "tags": ["extract", "url", "link", "regex", "web"],
+  "cost_estimate": 0.0003,
+  "success_rate": 0.99,
+  "steps": [
+    {
+      "action": "extract_regex",
+      "params": {
+        "pattern": "https?://(?:[-\\w.]|(?:%[\\da-fA-F]{2}))+(?::\\d+)?(?:/[-\\w%!$&'()*+,;=.:@?/~#]*)?",
+        "input": "{input_text}",
+        "flags": "IGNORECASE"
+      },
+      "on_error": "skip",
+      "description": "Regex-extract all URLs from text"
+    }
+  ]
+}

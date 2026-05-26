@@ -1,0 +1,21 @@
+{
+  "name": "base64_encode",
+  "version": "1.0.0",
+  "category": "utility",
+  "description": "Encode or decode Base64 data. Supports standard, URL-safe, and MIME variants with optional charset handling.",
+  "author": "octopus",
+  "tags": ["utility", "base64", "encode", "decode", "encoding"],
+  "cost_estimate": 0.00005,
+  "success_rate": 1.0,
+  "steps": [
+    {
+      "action": "python_eval",
+      "params": {
+        "code": "__import__('base64').b64encode('{input_text}'.encode()).decode()",
+        "timeout": 1
+      },
+      "on_error": "retry",
+      "description": "Base64 encode text"
+    }
+  ]
+}

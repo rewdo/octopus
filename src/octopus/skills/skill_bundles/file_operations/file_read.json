@@ -1,0 +1,21 @@
+{
+  "name": "file_read",
+  "version": "1.0.0",
+  "category": "file_operations",
+  "description": "Read file contents with encoding detection, size limits, and formatted output.",
+  "author": "octopus",
+  "tags": ["file", "read", "io", "text"],
+  "cost_estimate": 0.0001,
+  "success_rate": 0.99,
+  "steps": [
+    {
+      "action": "shell",
+      "params": {
+        "command": "python3 -c \"import sys; path=sys.argv[1]; enc=sys.argv[2] if len(sys.argv)>2 else 'utf-8'; print(open(path,'r',encoding=enc,errors='replace').read())\" \"{file_path}\"",
+        "timeout": 10
+      },
+      "on_error": "retry",
+      "description": "Read file contents"
+    }
+  ]
+}

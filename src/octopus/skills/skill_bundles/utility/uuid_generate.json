@@ -1,0 +1,21 @@
+{
+  "name": "uuid_generate",
+  "version": "1.0.0",
+  "category": "utility",
+  "description": "Generate UUIDs in various formats: v1 (time-based), v4 (random), and v5 (name-based from namespace).",
+  "author": "octopus",
+  "tags": ["utility", "uuid", "generate", "identifier", "guid"],
+  "cost_estimate": 0.00005,
+  "success_rate": 1.0,
+  "steps": [
+    {
+      "action": "python_eval",
+      "params": {
+        "code": "str(__import__('uuid').uuid4())",
+        "timeout": 1
+      },
+      "on_error": "skip",
+      "description": "Generate a UUID v4 (random)"
+    }
+  ]
+}

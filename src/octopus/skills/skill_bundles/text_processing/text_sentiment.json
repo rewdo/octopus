@@ -1,0 +1,22 @@
+{
+  "name": "text_sentiment",
+  "version": "1.0.0",
+  "category": "text_processing",
+  "description": "Analyze sentiment (positive/negative/neutral) with confidence score and emotion detection.",
+  "author": "octopus",
+  "tags": ["text", "sentiment", "emotion", "analysis", "nlp"],
+  "cost_estimate": 0.0008,
+  "success_rate": 0.90,
+  "steps": [
+    {
+      "action": "call_llm",
+      "params": {
+        "prompt_template": "Analyze the sentiment of the following text. Return JSON with fields: sentiment ('positive','negative','neutral'), confidence (0-1), emotions (list), intensity (0-1):\n\n{input_text}",
+        "max_tokens": 200,
+        "temperature": 0.1
+      },
+      "on_error": "retry",
+      "description": "Analyze sentiment and detect emotions"
+    }
+  ]
+}

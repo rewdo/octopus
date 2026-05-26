@@ -1,0 +1,22 @@
+{
+  "name": "code_explain",
+  "version": "1.0.0",
+  "category": "code_generation",
+  "description": "Explain what a piece of code does in natural language. Breaks down logic, algorithms, and design patterns.",
+  "author": "octopus",
+  "tags": ["code", "explain", "documentation", "tutorial"],
+  "cost_estimate": 0.002,
+  "success_rate": 0.92,
+  "steps": [
+    {
+      "action": "call_llm",
+      "params": {
+        "prompt_template": "Explain what the following {language} code does. Break down the logic step by step, explain any algorithms or patterns used, and note any potential edge cases:\n\n```{language}\n{input_text}\n```",
+        "max_tokens": 800,
+        "temperature": 0.3
+      },
+      "on_error": "retry",
+      "description": "Explain code logic in natural language"
+    }
+  ]
+}

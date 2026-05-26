@@ -1,0 +1,21 @@
+{
+  "name": "file_search",
+  "version": "1.0.0",
+  "category": "file_operations",
+  "description": "Search files by name pattern, content grep, size range, or modification date. Supports recursive directory search.",
+  "author": "octopus",
+  "tags": ["file", "search", "find", "grep", "glob"],
+  "cost_estimate": 0.0002,
+  "success_rate": 0.98,
+  "steps": [
+    {
+      "action": "shell",
+      "params": {
+        "command": "python3 -c \"import os,re,glob,sys; pattern=sys.argv[1]; recursive=sys.argv[2]=='true' if len(sys.argv)>2 else True; files=glob.glob(pattern, recursive=recursive); print('\\n'.join(files[:100]))\" \"{search_pattern}\"",
+        "timeout": 15
+      },
+      "on_error": "skip",
+      "description": "Search files by glob pattern"
+    }
+  ]
+}

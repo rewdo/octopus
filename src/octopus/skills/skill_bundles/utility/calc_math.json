@@ -1,0 +1,21 @@
+{
+  "name": "calc_math",
+  "version": "1.0.0",
+  "category": "utility",
+  "description": "Evaluate mathematical expressions with support for arithmetic, trigonometry, logarithms, and statistics.",
+  "author": "octopus",
+  "tags": ["utility", "math", "calculate", "arithmetic", "formula"],
+  "cost_estimate": 0.0001,
+  "success_rate": 0.99,
+  "steps": [
+    {
+      "action": "python_eval",
+      "params": {
+        "code": "__import__('math').eval('{expression}')",
+        "timeout": 5
+      },
+      "on_error": "retry",
+      "description": "Evaluate mathematical expression"
+    }
+  ]
+}

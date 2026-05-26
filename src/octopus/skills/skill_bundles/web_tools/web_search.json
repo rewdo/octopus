@@ -1,0 +1,22 @@
+{
+  "name": "web_search",
+  "version": "1.0.0",
+  "category": "web_tools",
+  "description": "Search the web using DuckDuckGo. Returns structured results with title, URL, and snippet.",
+  "author": "octopus",
+  "tags": ["web", "search", "internet", "information"],
+  "cost_estimate": 0.0002,
+  "success_rate": 0.95,
+  "steps": [
+    {
+      "action": "web_search",
+      "params": {
+        "query": "{search_query}",
+        "engine": "duckduckgo",
+        "max_results": 10
+      },
+      "on_error": "retry",
+      "description": "Search the web"
+    }
+  ]
+}

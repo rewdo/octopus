@@ -1,0 +1,22 @@
+{
+  "name": "code_refactor",
+  "version": "1.0.0",
+  "category": "code_generation",
+  "description": "Refactor code for improved readability, performance, or patterns. Preserves all functionality and tests.",
+  "author": "octopus",
+  "tags": ["code", "refactor", "optimize", "clean-code"],
+  "cost_estimate": 0.005,
+  "success_rate": 0.82,
+  "steps": [
+    {
+      "action": "call_llm",
+      "params": {
+        "prompt_template": "Refactor the following {language} code. Focus on: {refactor_goals}. Improve readability, reduce complexity, eliminate duplication, and apply best practices. Return the refactored code with a summary of changes:\n\n```{language}\n{input_text}\n```",
+        "max_tokens": 1500,
+        "temperature": 0.3
+      },
+      "on_error": "retry",
+      "description": "Refactor code with summary of changes"
+    }
+  ]
+}

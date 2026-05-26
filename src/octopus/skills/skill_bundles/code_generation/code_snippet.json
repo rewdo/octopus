@@ -1,0 +1,22 @@
+{
+  "name": "code_snippet",
+  "version": "1.0.0",
+  "category": "code_generation",
+  "description": "Generate clean, documented code snippets from natural language descriptions. Supports 20+ languages.",
+  "author": "octopus",
+  "tags": ["code", "generation", "snippet", "programming"],
+  "cost_estimate": 0.003,
+  "success_rate": 0.88,
+  "steps": [
+    {
+      "action": "call_llm",
+      "params": {
+        "prompt_template": "Generate a {language} code snippet that {task_description}. Include necessary imports, error handling, and comments. Return only the code:\n\nInput context:\n{input_text}",
+        "max_tokens": 1000,
+        "temperature": 0.3
+      },
+      "on_error": "retry",
+      "description": "Generate code snippet from description"
+    }
+  ]
+}

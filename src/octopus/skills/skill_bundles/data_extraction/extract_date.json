@@ -1,0 +1,22 @@
+{
+  "name": "extract_date",
+  "version": "1.0.0",
+  "category": "data_extraction",
+  "description": "Extract dates in common formats (ISO 8601, US, EU, Chinese) and normalize to a standard format.",
+  "author": "octopus",
+  "tags": ["extract", "date", "time", "regex", "data"],
+  "cost_estimate": 0.0003,
+  "success_rate": 0.96,
+  "steps": [
+    {
+      "action": "extract_regex",
+      "params": {
+        "pattern": "\\b\\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\\d|3[01])\\b|\\b\\d{4}[年/-](?:0?[1-9]|1[0-2])[月/-](?:0?[1-9]|[12]\\d|3[01])[日号]?\\b|\\b(?:0?[1-9]|1[0-2])/(?:0?[1-9]|[12]\\d|3[01])/\\d{2,4}\\b",
+        "input": "{input_text}",
+        "flags": ""
+      },
+      "on_error": "skip",
+      "description": "Extract dates in ISO, US, EU, and Chinese formats"
+    }
+  ]
+}

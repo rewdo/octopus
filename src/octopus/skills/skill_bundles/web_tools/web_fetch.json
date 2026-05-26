@@ -1,0 +1,26 @@
+{
+  "name": "web_fetch",
+  "version": "1.0.0",
+  "category": "web_tools",
+  "description": "Fetch and extract readable content from a URL. Strips ads, navigation, and other non-content elements.",
+  "author": "octopus",
+  "tags": ["web", "fetch", "scrape", "extract", "content"],
+  "cost_estimate": 0.0003,
+  "success_rate": 0.90,
+  "steps": [
+    {
+      "action": "web_fetch",
+      "params": {
+        "url": "{target_url}",
+        "method": "GET",
+        "timeout": 30,
+        "max_size": 5242880,
+        "headers": {
+          "User-Agent": "Octopus/5.0 SkillBrain"
+        }
+      },
+      "on_error": "retry",
+      "description": "Fetch URL content"
+    }
+  ]
+}

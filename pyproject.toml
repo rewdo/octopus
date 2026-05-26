@@ -1,0 +1,77 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "octopus-agent"
+version = "0.1.0"
+description = "Octopus — Multi-Brain Agent Infrastructure. Token-economic, never-forgetting, self-evolving cognitive OS."
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Octopus Contributors"}
+]
+keywords = ["ai", "agent", "llm", "cognitive-architecture", "multi-brain", "skill-engine"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "networkx>=3.0",
+    "numpy>=1.24",
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "rich>=13.0",
+    "typer>=0.9",
+    "httpx>=0.25",
+    "chromadb>=0.4",
+    "tiktoken>=0.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "pytest-cov>=4.0",
+    "ruff>=0.1",
+    "mypy>=1.0",
+]
+local = [
+    "ollama>=0.1",
+]
+all = [
+    "octopus-agent[dev,local]",
+]
+
+[project.scripts]
+octopus = "octopus.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/octopus-agent/octopus"
+Documentation = "https://github.com/octopus-agent/octopus#readme"
+Repository = "https://github.com/octopus-agent/octopus"
+Issues = "https://github.com/octopus-agent/octopus/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true

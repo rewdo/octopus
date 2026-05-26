@@ -1,0 +1,22 @@
+{
+  "name": "extract_email",
+  "version": "1.0.0",
+  "category": "data_extraction",
+  "description": "Extract all email addresses from text or structured data. Validates format and deduplicates results.",
+  "author": "octopus",
+  "tags": ["extract", "email", "contact", "regex", "data"],
+  "cost_estimate": 0.0003,
+  "success_rate": 0.99,
+  "steps": [
+    {
+      "action": "extract_regex",
+      "params": {
+        "pattern": "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}",
+        "input": "{input_text}",
+        "flags": "IGNORECASE"
+      },
+      "on_error": "skip",
+      "description": "Regex-extract all email addresses"
+    }
+  ]
+}

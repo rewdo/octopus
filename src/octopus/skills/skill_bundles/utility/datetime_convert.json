@@ -1,0 +1,22 @@
+{
+  "name": "datetime_convert",
+  "version": "1.0.0",
+  "category": "utility",
+  "description": "Convert between date/time formats, timezones, and timestamp representations. Supports relative time calculations.",
+  "author": "octopus",
+  "tags": ["utility", "datetime", "timezone", "convert", "timestamp"],
+  "cost_estimate": 0.0002,
+  "success_rate": 0.98,
+  "steps": [
+    {
+      "action": "call_llm",
+      "params": {
+        "prompt_template": "Convert the following datetime expression into the requested format. Input: {datetime_input}. Target format: {target_format}. Return only the converted result:",
+        "max_tokens": 100,
+        "temperature": 0.0
+      },
+      "on_error": "retry",
+      "description": "Convert datetime between formats and timezones"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "name": "web_check_status",
+  "version": "1.0.0",
+  "category": "web_tools",
+  "description": "Check HTTP status, response time, and headers for one or more URLs. Useful for monitoring and debugging.",
+  "author": "octopus",
+  "tags": ["web", "status", "monitor", "http", "health"],
+  "cost_estimate": 0.0002,
+  "success_rate": 0.98,
+  "steps": [
+    {
+      "action": "web_fetch",
+      "params": {
+        "url": "{target_url}",
+        "method": "HEAD",
+        "timeout": 10,
+        "max_size": 1024
+      },
+      "on_error": "skip",
+      "description": "Check URL HTTP status and headers"
+    }
+  ]
+}

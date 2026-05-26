@@ -1,0 +1,33 @@
+{
+  "name": "web_scrape",
+  "version": "1.0.0",
+  "category": "web_tools",
+  "description": "Scrape structured data from a webpage using CSS selectors. Returns parsed data as JSON.",
+  "author": "octopus",
+  "tags": ["web", "scrape", "parse", "extract", "data"],
+  "cost_estimate": 0.001,
+  "success_rate": 0.85,
+  "steps": [
+    {
+      "action": "web_fetch",
+      "params": {
+        "url": "{target_url}",
+        "method": "GET",
+        "timeout": 30,
+        "max_size": 10485760
+      },
+      "on_error": "retry",
+      "description": "Fetch the target webpage"
+    },
+    {
+      "action": "call_llm",
+      "params": {
+        "prompt_template": "Extract structured data from the following HTML content. Focus on: {extract_goal}. Return as a clean JSON array/object with only the relevant data:\n\n{web_fetch.content}",
+        "max_tokens": 1000,
+        "temperature": 0.1
+      },
+      "on_error": "skip",
+      "description": "Extract structured data from HTML"
+    }
+  ]
+}

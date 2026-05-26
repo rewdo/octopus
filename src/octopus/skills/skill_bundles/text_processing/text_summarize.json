@@ -1,0 +1,22 @@
+{
+  "name": "text_summarize",
+  "version": "1.0.0",
+  "category": "text_processing",
+  "description": "Summarize long text into concise key points. Supports bullet-point, paragraph, and headline styles.",
+  "author": "octopus",
+  "tags": ["text", "summarization", "nlp", "condense"],
+  "cost_estimate": 0.001,
+  "success_rate": 0.95,
+  "steps": [
+    {
+      "action": "call_llm",
+      "params": {
+        "prompt_template": "Summarize the following text in 3-5 bullet points. Be concise and capture only the most important information:\n\n{input_text}",
+        "max_tokens": 500,
+        "temperature": 0.3
+      },
+      "on_error": "retry",
+      "description": "Call LLM to generate summary bullet points"
+    }
+  ]
+}

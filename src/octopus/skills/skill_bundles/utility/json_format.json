@@ -1,0 +1,22 @@
+{
+  "name": "json_format",
+  "version": "1.0.0",
+  "category": "utility",
+  "description": "Validate, format (pretty-print), minify, or sort JSON data. Detects and fixes common JSON syntax errors.",
+  "author": "octopus",
+  "tags": ["utility", "json", "format", "validate", "pretty-print"],
+  "cost_estimate": 0.0001,
+  "success_rate": 0.99,
+  "steps": [
+    {
+      "action": "call_llm",
+      "params": {
+        "prompt_template": "Format the following JSON data. Action: {format_action}. Options: indent={indent}, sort_keys={sort_keys}. Return only the formatted JSON:\n\n{input_text}",
+        "max_tokens": 500,
+        "temperature": 0.0
+      },
+      "on_error": "retry",
+      "description": "Format/validate JSON data"
+    }
+  ]
+}

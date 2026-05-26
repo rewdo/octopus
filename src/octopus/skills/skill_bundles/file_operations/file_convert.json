@@ -1,0 +1,22 @@
+{
+  "name": "file_convert",
+  "version": "1.0.0",
+  "category": "file_operations",
+  "description": "Convert files between formats: JSON ↔ YAML ↔ XML, CSV ↔ JSON, Markdown ↔ HTML, and more.",
+  "author": "octopus",
+  "tags": ["file", "convert", "format", "transform", "encoding"],
+  "cost_estimate": 0.0005,
+  "success_rate": 0.93,
+  "steps": [
+    {
+      "action": "call_llm",
+      "params": {
+        "prompt_template": "Convert the following content from {source_format} to {target_format}. Preserve all data and structure. Output only the converted result:\n\n{input_text}",
+        "max_tokens": 1000,
+        "temperature": 0.1
+      },
+      "on_error": "retry",
+      "description": "Convert between file formats"
+    }
+  ]
+}
